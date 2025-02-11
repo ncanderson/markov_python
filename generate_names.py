@@ -20,27 +20,88 @@ def connect_to_database(server, database, username, password):
 
 # Fetch selectable name options from the database
 def fetch_name_options(cursor):
-    query = "SELECT id, name FROM LanguageOptions"
+    query = """
+        with name_union as (
+            select
+                generated_guid_culture as source_id,
+                generated_name_culture as source_language,
+                'Generated' as name_origin,
+                2 as sort
+            from generated_Culture gc
+            union
+            select
+                guid_Language,
+                name_language,
+                'Real World',
+                1
+            from name_language
+        )
+        select
+            row_number() over (order by sort, source_language) as row_num,
+            source_id,
+            source_language,
+            name_origin
+        from name_union
+        order by sort, source_language;
+    """
     cursor.execute(query)
     results = cursor.fetchall()
 
     print("Available Options:")
-    for row in results:
-        print(f"{row.id}: {row.name}")
+
+    # Define column width based on the longest option length (for better formatting)
+    max_width = max(len(row.source_language) for row in results) + 5
+
+    # Calculate fixed width for the row number part
+    num_width = len(str(len(results))) + 3  # Add a little extra padding for numbers
+
+    # Print results in three columns with dynamic width
+    for i, row in enumerate(results):
+        # Format the row number with fixed width and align the source_language
+        print(f"{row.row_num:>{num_width}}: {row.source_language:<{max_width}}", end='')
+
+        # Add a new line after every third column
+        if (i + 1) % 3 == 0:
+            print()
+
+    # Ensure a newline if the last row doesn't complete a set of three
+    if len(results) % 3 != 0:
+        print()
+
+
     return results
 
 # Select options and percentages from the user
 def get_user_selection(options):
     selections = []
-    while True:
+
+    while len(selections) < 3:
         try:
+            # Get the option ID input
             option_id = int(input("Enter an option ID (or -1 to finish): "))
+
+            # Prevent -1 as the first choice if no selections are made
+            if option_id == -1 and len(selections) >= 2:
+                break  # Allow finishing only if at least 2 selections are made
+
             if option_id == -1:
-                break
-            percentage = float(input("Enter percentage for this option: "))
+                print("You need to select at least 2 options before finishing.")
+                continue  # Skip this iteration if -1 is entered too early
+
+            # Get the percentage input
+            percentage = float(input("Percentage (numbers should all be decimals or float/int): "))
+
+            # Add the selected option and percentage to the list
             selections.append((option_id, percentage))
+
         except ValueError:
             print("Invalid input. Please try again.")
+
+    # If less than 2 selections, ask the user to enter more
+    if len(selections) < 2:
+        print("You need to make at least 2 selections.")
+        return get_user_selection(options)  # Retry if less than 2 selections
+
     return selections
 
 # Fetch generated names based on user selection
