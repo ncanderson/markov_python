@@ -1,3 +1,7 @@
+# weird python stuff I don't understand
 json
 os
 pyodbc
+
+# Generated output
+*.txt

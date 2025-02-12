@@ -3,6 +3,7 @@
   "database": "markov_name_generator",
   "username": "sa",
   "password": "coldElevator-4!",
-  "max_name_length": 50,
-  "number_of_names": 100
+  "final_name_count": 100,
+  "max_name_length": 20,
+  "min_name_length": 4
 }
