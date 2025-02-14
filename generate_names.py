@@ -202,12 +202,43 @@ def write_names_to_file(names, language_meta, filename=None):
             filename = f"{base_filename}_{count}.txt"
             count += 1
 
-    # Write names to the file
+    # Write metadata and names to the file
     with open(filename, "w") as file:
+        # Write metadata at the top
+        file.write("=== Language Metadata ===\n")
+        for key, value in language_meta.items():
+            file.write(f"{key}: {value}\n")
+        file.write("\n=== Generated Names ===\n")
+
+        # Write the generated names
         file.write("\n".join(names))
 
     print(f"Names written to {filename}")
 
+def update_config_from_user_input(config):
+    """
+    Prompts the user to update the configuration parameters for name generation.
+
+    Args:
+        config (dict): The configuration dictionary loaded from file.
+
+    Returns:
+        dict: The updated configuration dictionary.
+    """
+    print("\nUpdate Configuration Parameters (Press Enter to keep the current value)")
+
+    # Helper function to get user input with a default fallback
+    def get_int_input(prompt, current_value):
+        user_input = input(f"{prompt} [{current_value}]: ").strip()
+        return int(user_input) if user_input.isdigit() else current_value
+
+    # Prompt user for changes
+    config["final_name_count"] = get_int_input("Final name count", config["final_name_count"])
+    config["max_name_length"] = get_int_input("Max name length", config["max_name_length"])
+    config["min_name_length"] = get_int_input("Min name length", config["min_name_length"])
+
+    print("\nConfiguration updated successfully.")
+    return config
 
 # Save names to the database
 def save_names_to_database(cursor, names):
@@ -234,6 +265,10 @@ def main():
     max_name_length = config["max_name_length"]
     min_name_length = config["min_name_length"]
 
+    # This flag will be set to true if the user enters new config, so we can track
+    # whether to prompt the user to save the new values.
+    config_dirty = False
+
     # Connect to the database
     conn = connect_to_database(server, database, username, password)
     cursor = conn.cursor()
@@ -248,19 +283,50 @@ def main():
     # for the generation run.
     language_meta = get_generated_language_meta()
 
-    # Fetch generated names
-    names = fetch_generated_names(cursor, selections, language_meta, config)
+    while True:
+        # Fetch generated names
+        names = fetch_generated_names(cursor, selections, language_meta, config)
 
-    print(names)
+        print(names)
 
-    # Write names to a file
-    write_names_to_file(names, language_meta)
+        # Write names to a file
+        write_names_to_file(names, language_meta)
+
+        # Offer user the choice to regenerate or proceed
+        print("\nOptions:")
+        print("1. Re-generate words with the same parameters")
+        print("2. Re-generate words with new source languages")
+        print("3. Re-generate words with new meta-data")
+        print("4. Change generation parameters")
+        print("5. Exit")
+
+        choice = input("Select an option (1-4): ").strip()
+
+        if choice == '1':
+            continue  # Just re-fetch names with the same parameters
+        elif choice == '2':
+            options = fetch_name_options(cursor)
+            selections = get_user_selection(options)  # Re-select languages, keep meta-data
+        elif choice == '3':
+            language_meta = get_generated_language_meta()  # Update meta-data, keep selections
+        elif choice == '4':
+            config = update_config_from_user_input(config) # Change sample size, word size, etc
+            config_dirty = True
+        elif choice == '5':
+            break  # Exit loop and proceed to saving
 
     # Prompt user to save names to the database
     print("This isn't actually working yet, don't enter 'Y'")
     save_choice = input("Do you want to save these names to the database? (y/n): ").strip().lower()
     if save_choice == 'y':
         save_names_to_database(cursor, names)
+
+    # Prompt user to save the updated config file
+    save_config_choice = input("Do you want to save the updated config to file? (y/n): ").strip().lower()
+    if save_config_choice == 'y' and config_dirty == True:
+        with open("config.json", "w") as config_file:
+            json.dump(config, config_file, indent=4)
+        print("Configuration saved to config.json")
 
     # Close the connection
     cursor.close()
