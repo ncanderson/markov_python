@@ -186,7 +186,7 @@ def fetch_generated_names(cursor, selections, language_meta, config):
     return [row[0] for row in cursor.fetchall()]
 
 # Write names to a file
-def write_names_to_file(names, language_meta, filename=None):
+def write_names_to_file(names, language_meta, selections, filename=None):
     # Generate base filename using the current date and the generated culture
     date_str = datetime.now().strftime("%Y%m%d")
     culture_name = language_meta.get("generated_culture", "UnknownCulture").replace(" ", "_")  # Ensure valid filename
@@ -202,15 +202,20 @@ def write_names_to_file(names, language_meta, filename=None):
             filename = f"{base_filename}_{count}.txt"
             count += 1
 
-    # Write metadata and names to the file
+    # Write metadata, selections, and names to the file
     with open(filename, "w") as file:
         # Write metadata at the top
         file.write("=== Language Metadata ===\n")
         for key, value in language_meta.items():
             file.write(f"{key}: {value}\n")
-        file.write("\n=== Generated Names ===\n")
+
+        # Write the selected names and ratios
+        file.write("\n=== Selected Languages and Counts ===\n")
+        for language, parts in selections:
+            file.write(f"{language}: {parts}\n")
 
         # Write the generated names
+        file.write("\n=== Generated Names ===\n")
         file.write("\n".join(names))
 
     print(f"Names written to {filename}")
@@ -290,7 +295,7 @@ def main():
         print(names)
 
         # Write names to a file
-        write_names_to_file(names, language_meta)
+        write_names_to_file(names, language_meta, selections)
 
         # Offer user the choice to regenerate or proceed
         print("\nOptions:")

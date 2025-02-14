@@ -1,9 +1,9 @@
 {
-  "server": "localhost",
-  "database": "markov_name_generator",
-  "username": "sa",
-  "password": "coldElevator-4!",
-  "final_name_count": 100,
-  "max_name_length": 20,
-  "min_name_length": 4
+    "server": "localhost",
+    "database": "markov_name_generator",
+    "username": "sa",
+    "password": "coldElevator-4!",
+    "final_name_count": 500,
+    "max_name_length": 12,
+    "min_name_length": 4
 }
