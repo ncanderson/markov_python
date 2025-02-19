@@ -161,9 +161,7 @@ def fetch_generated_names(cursor, selections, language_meta, config):
             @lang1 = ?, @lang1_percentage = ?,
             @lang2 = ?, @lang2_percentage = ?,
             @lang3 = ?, @lang3_percentage = ?,
-            @final_name_count = ?, @max_name_length = ?, @min_name_length = ?,
-            @generated_culture = ?, @generated_era = ?, @BatchNotes = ?,
-            @commit_bit = 0
+            @final_name_count = ?, @max_name_length = ?, @min_name_length = ?
     """
 
    # Create a tuple of parameters
@@ -171,12 +169,11 @@ def fetch_generated_names(cursor, selections, language_meta, config):
         langs[0], percentages[0],
         langs[1], percentages[1],
         langs[2], percentages[2],
-        final_name_count, max_name_length, min_name_length,
-        generated_culture, generated_era, batch_notes
+        final_name_count, max_name_length, min_name_length
     )
 
     # Print parameters before executing for debugging
-    print("Executing SQL with parameters:", params)
+    print("Executing [markov_Complete] with parameters:", params)
     print("...")
 
     # Execute the stored procedure
@@ -194,7 +191,7 @@ def write_names_to_file(names, language_meta, selections, filename=None):
 
     # Determine the final filename (increment if needed)
     if filename is None:
-        filename = f"{base_filename}.txt"
+        filename = f"./output/{base_filename}.txt"
         count = 1
 
         # Check if file already exists and increment filename
@@ -246,12 +243,38 @@ def update_config_from_user_input(config):
     return config
 
 # Save names to the database
-def save_names_to_database(cursor, names):
-    query = "INSERT INTO GeneratedNames (name) VALUES (?)"
-    for name in names:
-        cursor.execute(query, name)
-    cursor.commit()
-    print("Names saved to the database.")
+def save_names_to_database(cursor, language_meta):
+    # Extract metadata values (with defaults to avoid KeyErrors)
+    generated_culture = language_meta.get("generated_culture", "")
+    generated_era = language_meta.get("generated_era", "")
+    batch_notes = language_meta.get("batch_notes", "")
+    commit_bit = 1
+
+    # Define stored procedure query
+    query = """
+        EXEC markov_Cache_Generated_Names
+            @generated_culture = ?,
+            @generated_era = ?,
+            @batch_notes = ?,
+            @commit_bit = ?
+    """
+
+   # Create a tuple of parameters
+    params = (
+        generated_culture,
+        generated_era,
+        batch_notes,
+        commit_bit
+    )
+
+    # Print parameters before executing for debugging
+    print("Executing [markov_Cache_Generated_Names] with parameters:", params)
+    print("...")
+
+    # Execute the stored procedure
+    cursor.execute(query, params)
+
+    print("Generated names saved to the database.")
 
 def main():
     # Load config file
@@ -303,9 +326,9 @@ def main():
         print("2. Re-generate words with new source languages")
         print("3. Re-generate words with new meta-data")
         print("4. Change generation parameters")
-        print("5. Exit")
+        print("5. Exit and save names")
 
-        choice = input("Select an option (1-4): ").strip()
+        choice = input("Select an option (1-5): ").strip()
 
         if choice == '1':
             continue  # Just re-fetch names with the same parameters
@@ -321,10 +344,9 @@ def main():
             break  # Exit loop and proceed to saving
 
     # Prompt user to save names to the database
-    print("This isn't actually working yet, don't enter 'Y'")
     save_choice = input("Do you want to save these names to the database? (y/n): ").strip().lower()
     if save_choice == 'y':
-        save_names_to_database(cursor, names)
+        save_names_to_database(cursor, language_meta)
 
     # Prompt user to save the updated config file
     save_config_choice = input("Do you want to save the updated config to file? (y/n): ").strip().lower()
