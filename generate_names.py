@@ -19,6 +19,20 @@ def connect_to_database(server, database, username, password):
     )
     return pyodbc.connect(connection_string)
 
+# Generate or show?
+def get_user_action():
+    while True:
+        print("\nHello. Please select an option:")
+        print("1. Generate new names")
+        print("2. Get existing names")
+
+        choice = input("Enter 1 or 2: ").strip()
+
+        if choice in {"1", "2"}:
+            return int(choice)
+        else:
+            print("Invalid input. Please enter 1 or 2.")
+
 # Fetch selectable name options from the database
 def fetch_name_options(cursor):
     query = """
@@ -306,6 +320,8 @@ def main():
     # Connect to the database
     conn = connect_to_database(server, database, username, password)
     cursor = conn.cursor()
+
+
 
     # Fetch selectable name options
     options = fetch_name_options(cursor)
