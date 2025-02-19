@@ -20,7 +20,7 @@ def connect_to_database(server, database, username, password):
     return pyodbc.connect(connection_string)
 
 # Generate or show?
-def get_user_action():
+def get_activity():
     while True:
         print("\nHello. Please select an option:")
         print("1. Generate new names")
@@ -29,9 +29,92 @@ def get_user_action():
         choice = input("Enter 1 or 2: ").strip()
 
         if choice in {"1", "2"}:
-            return int(choice)
+            return choice.strip()
         else:
             print("Invalid input. Please enter 1 or 2.")
+
+# Get and display all generated cultures
+def fetch_and_display_generated_names(cursor):
+    # Query to fetch generated cultures
+    query_cultures = """
+        select generated_guid_culture, generated_name_culture
+        from generated_Culture
+        order by generated_name_culture;
+    """
+
+    cursor.execute(query_cultures)
+    cultures = cursor.fetchall()
+
+    if not cultures:
+        print("No generated cultures found.")
+        return
+
+    print("\nAvailable Generated Cultures:\n")
+
+    # Extract and format results
+    formatted_cultures = [(i + 1, row.generated_guid_culture, row.generated_name_culture) for i, row in enumerate(cultures)]
+
+    # Determine column width for alignment
+    max_culture_length = max(len(row[2]) for row in formatted_cultures) + 5
+    max_num_length = len(str(len(formatted_cultures))) + 2
+    col_count = 3  # Number of columns for cultures
+
+    # Display cultures in columns
+    for i, (row_num, _, culture_name) in enumerate(formatted_cultures):
+        print(f"{row_num:>{max_num_length}}: {culture_name:<{max_culture_length}}", end='')
+
+        if (i + 1) % col_count == 0:
+            print()
+
+    if len(formatted_cultures) % col_count != 0:
+        print("\n")
+
+    # Get user selection
+    while True:
+        try:
+            selection = int(input("Enter the number of the culture to view names: ").strip())
+            if 1 <= selection <= len(formatted_cultures):
+                selected_uuid = formatted_cultures[selection - 1][1]
+                break
+            else:
+                print("Invalid selection. Please enter a valid number.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+
+    # Query to fetch names associated with the selected culture
+    query_names = """
+        select generated_name
+        from generated_name gn
+        join generated_Culture gc
+            on gn.generated_guid_culture = gc.generated_guid_culture
+        were gc.generated_guid_culture = ?
+        order by generated_name
+    """
+    cursor.execute(query_names, (selected_uuid,))
+    names = cursor.fetchall()
+
+    if not names:
+        print("No names found for the selected culture.")
+        return
+
+    print("\nGenerated Names:\n")
+
+    # Extract names from results
+    name_list = [row.generated_Name for row in names]
+
+    # Determine column width
+    max_name_length = max(len(name) for name in name_list) + 5
+    col_count = 4  # Number of columns for names
+
+    # Display names in columns
+    for i, name in enumerate(name_list):
+        print(f"{name:<{max_name_length}}", end='')
+
+        if (i + 1) % col_count == 0:
+            print()
+
+    if len(name_list) % col_count != 0:
+        print("\n")
 
 # Fetch selectable name options from the database
 def fetch_name_options(cursor):
@@ -263,11 +346,19 @@ def update_config_from_user_input(config):
     return config
 
 # Save names to the database
-def save_names_to_database(cursor, language_meta):
+def save_names_to_database(cursor, language_meta, selections):
     # Extract metadata values (with defaults to avoid KeyErrors)
     generated_culture = language_meta.get("generated_culture", "")
     generated_era = language_meta.get("generated_era", "")
     batch_notes = language_meta.get("batch_notes", "")
+
+    # Append selections to batch_notes
+    selection_notes = "; ".join(f"{name}: {ratio}" for name, ratio in selections)
+
+    if batch_notes:
+        batch_notes += f" | Selections: {selection_notes}"
+    else:
+        batch_notes = f"Selections: {selection_notes}"
 
     # Define stored procedure query
     query = """
@@ -277,7 +368,7 @@ def save_names_to_database(cursor, language_meta):
             @batch_notes = ?
     """
 
-   # Create a tuple of parameters
+    # Create a tuple of parameters
     params = (
         generated_culture,
         generated_era,
@@ -291,10 +382,11 @@ def save_names_to_database(cursor, language_meta):
     # Execute the stored procedure
     cursor.execute(query, params)
 
-    # Commit
+    # Commit transaction
     cursor.connection.commit()
 
     print("Generated names saved to the database.")
+
 
 def main():
     # Load config file
@@ -321,7 +413,13 @@ def main():
     conn = connect_to_database(server, database, username, password)
     cursor = conn.cursor()
 
+    while True:
+        activity = get_activity()
 
+        if activity == '1':
+            break  # Continue to generate names
+        elif activity == '2':
+            fetch_and_display_generated_names(cursor)
 
     # Fetch selectable name options
     options = fetch_name_options(cursor)
@@ -368,7 +466,7 @@ def main():
     # Prompt user to save names to the database
     save_choice = input("Do you want to save these names to the database? (y/n): ").strip().lower()
     if save_choice == 'y':
-        save_names_to_database(cursor, language_meta)
+        save_names_to_database(cursor, language_meta, selections)
 
     # Prompt user to save the updated config file
     if config_dirty == True:
