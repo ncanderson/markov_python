@@ -179,8 +179,14 @@ def fetch_generated_names(cursor, selections, language_meta, config):
     # Execute the stored procedure
     cursor.execute(query, params)
 
-    # Fetch and return the generated names
-    return [row[0] for row in cursor.fetchall()]
+    # Get the generated names
+    results = [row[0] for row in cursor.fetchall()]
+
+    # Commit
+    cursor.connection.commit()
+
+    # Then return
+    return results
 
 # Write names to a file
 def write_names_to_file(names, language_meta, selections, filename=None):
@@ -248,23 +254,20 @@ def save_names_to_database(cursor, language_meta):
     generated_culture = language_meta.get("generated_culture", "")
     generated_era = language_meta.get("generated_era", "")
     batch_notes = language_meta.get("batch_notes", "")
-    commit_bit = 1
 
     # Define stored procedure query
     query = """
         EXEC markov_Cache_Generated_Names
             @generated_culture = ?,
             @generated_era = ?,
-            @batch_notes = ?,
-            @commit_bit = ?
+            @batch_notes = ?
     """
 
    # Create a tuple of parameters
     params = (
         generated_culture,
         generated_era,
-        batch_notes,
-        commit_bit
+        batch_notes
     )
 
     # Print parameters before executing for debugging
@@ -273,6 +276,9 @@ def save_names_to_database(cursor, language_meta):
 
     # Execute the stored procedure
     cursor.execute(query, params)
+
+    # Commit
+    cursor.connection.commit()
 
     print("Generated names saved to the database.")
 
@@ -349,11 +355,12 @@ def main():
         save_names_to_database(cursor, language_meta)
 
     # Prompt user to save the updated config file
-    save_config_choice = input("Do you want to save the updated config to file? (y/n): ").strip().lower()
-    if save_config_choice == 'y' and config_dirty == True:
-        with open("config.json", "w") as config_file:
-            json.dump(config, config_file, indent=4)
-        print("Configuration saved to config.json")
+    if config_dirty == True:
+        save_config_choice = input("Do you want to save the updated config to file? (y/n): ").strip().lower()
+        if save_config_choice == 'y' :
+            with open("config.json", "w") as config_file:
+                json.dump(config, config_file, indent=4)
+            print("Configuration saved to config.json")
 
     # Close the connection
     cursor.close()
