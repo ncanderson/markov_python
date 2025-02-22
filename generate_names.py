@@ -87,7 +87,7 @@ def fetch_and_display_generated_names(cursor):
         from generated_name gn
         join generated_Culture gc
             on gn.generated_guid_culture = gc.generated_guid_culture
-        were gc.generated_guid_culture = ?
+        where gc.generated_guid_culture = ?
         order by generated_name
     """
     cursor.execute(query_names, (selected_uuid,))
@@ -100,7 +100,7 @@ def fetch_and_display_generated_names(cursor):
     print("\nGenerated Names:\n")
 
     # Extract names from results
-    name_list = [row.generated_Name for row in names]
+    name_list = [row.generated_name for row in names]
 
     # Determine column width
     max_name_length = max(len(name) for name in name_list) + 5
@@ -386,7 +386,6 @@ def save_names_to_database(cursor, language_meta, selections):
     cursor.connection.commit()
 
     print("Generated names saved to the database.")
-
 
 def main():
     # Load config file
