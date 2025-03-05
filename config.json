@@ -1,8 +1,9 @@
 {
-  "server": "your_server_name",
-  "database": "your_database_name",
-  "username": "your_username",
-  "password": "your_password",
-  "max_name_length": 50,
-  "number_of_names": 100
+    "server": "localhost",
+    "database": "markov_name_generator",
+    "username": "sa",
+    "password": "coldElevator-4!",
+    "final_name_count": 500,
+    "max_name_length": 12,
+    "min_name_length": 4
 }
