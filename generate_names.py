@@ -25,13 +25,14 @@ def get_activity():
         print("\nHello. Please select an option:")
         print("1. Generate new names")
         print("2. Get existing names")
+        print("3. Update generation parameters")
 
-        choice = input("Enter 1 or 2: ").strip()
+        choice = input("Enter 1, 2 or 3: ").strip()
 
-        if choice in {"1", "2"}:
+        if choice in {"1", "2", "3"}:
             return choice.strip()
         else:
-            print("Invalid input. Please enter 1 or 2.")
+            print("Invalid input. Please enter 1, 2 or 3.")
 
 # Get and display all generated cultures
 def fetch_and_display_generated_names(cursor):
@@ -346,6 +347,7 @@ def update_config_from_user_input(config):
     return config
 
 # Save names to the database
+# Return True to indicate successful save
 def save_names_to_database(cursor, language_meta, selections):
     # Extract metadata values (with defaults to avoid KeyErrors)
     generated_culture = language_meta.get("generated_culture", "")
@@ -386,6 +388,7 @@ def save_names_to_database(cursor, language_meta, selections):
     cursor.connection.commit()
 
     print("Generated names saved to the database.")
+    return True
 
 def main():
     # Load config file
@@ -407,6 +410,7 @@ def main():
     # This flag will be set to true if the user enters new config, so we can track
     # whether to prompt the user to save the new values.
     config_dirty = False
+    names_saved = False
 
     # Connect to the database
     conn = connect_to_database(server, database, username, password)
@@ -419,6 +423,8 @@ def main():
             break  # Continue to generate names
         elif activity == '2':
             fetch_and_display_generated_names(cursor)
+        elif activity == '3':
+            config = update_config_from_user_input(config)
 
     # Fetch selectable name options
     options = fetch_name_options(cursor)
@@ -430,42 +436,56 @@ def main():
     # for the generation run.
     language_meta = get_generated_language_meta()
 
+    # Fetch generated names
+    names = fetch_generated_names(cursor, selections, language_meta, config)
+
+    print(names)
+
+    # Write names to a file
+    write_names_to_file(names, language_meta, selections)
+
     while True:
-        # Fetch generated names
-        names = fetch_generated_names(cursor, selections, language_meta, config)
-
-        print(names)
-
-        # Write names to a file
-        write_names_to_file(names, language_meta, selections)
 
         # Offer user the choice to regenerate or proceed
         print("\nOptions:")
         print("1. Re-generate words with the same parameters")
         print("2. Re-generate words with new source languages")
-        print("3. Re-generate words with new meta-data")
+        print("3. Update language meta-data")
         print("4. Change generation parameters")
-        print("5. Exit and save names")
+        print("5. Save names")
+        print("6. Exit")
 
-        choice = input("Select an option (1-5): ").strip()
+        choice = input("Select an option (1-6): ").strip()
 
         if choice == '1':
-            continue  # Just re-fetch names with the same parameters
+            # Fetch generated names
+            names = fetch_generated_names(cursor, selections, language_meta, config)
+            print(names)
+            # Write names to a file
+            write_names_to_file(names, language_meta, selections)
         elif choice == '2':
             options = fetch_name_options(cursor)
             selections = get_user_selection(options)  # Re-select languages, keep meta-data
+            # Fetch generated names
+            names = fetch_generated_names(cursor, selections, language_meta, config)
+            print(names)
+            # Write names to a file
+            write_names_to_file(names, language_meta, selections)
         elif choice == '3':
             language_meta = get_generated_language_meta()  # Update meta-data, keep selections
         elif choice == '4':
             config = update_config_from_user_input(config) # Change sample size, word size, etc
             config_dirty = True
         elif choice == '5':
+            names_saved = save_names_to_database(cursor, language_meta, selections)
+        elif choice == '6':
             break  # Exit loop and proceed to saving
 
-    # Prompt user to save names to the database
-    save_choice = input("Do you want to save these names to the database? (y/n): ").strip().lower()
-    if save_choice == 'y':
-        save_names_to_database(cursor, language_meta, selections)
+    if not names_saved:
+        # Prompt user to save names to the database
+        save_choice = input("Do you want to save these names to the database? (y/n): ").strip().lower()
+        if save_choice == 'y':
+            names_saved = save_names_to_database(cursor, language_meta, selections)
 
     # Prompt user to save the updated config file
     if config_dirty == True:
