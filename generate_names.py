@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import pyodbc
 import os
@@ -26,13 +28,85 @@ def get_activity():
         print("1. Generate new names")
         print("2. Get existing names")
         print("3. Update generation parameters")
+        print("4. Dump names to file")
+        print("5. Exit")
 
-        choice = input("Enter 1, 2 or 3: ").strip()
+        choice = input("Enter 1, 2, 3, 4, or 5: ").strip()
 
-        if choice in {"1", "2", "3"}:
-            return choice.strip()
+        if choice in {"1", "2", "3", "4", "5"}:
+            return choice
         else:
-            print("Invalid input. Please enter 1, 2 or 3.")
+            print("Invalid input. Please enter 1, 2, 3, 4, or 5.")
+
+# Select a culture and fetch the names
+def select_generated_culture_and_fetch_names(cursor):
+    query_cultures = """
+        select generated_guid_culture, generated_name_culture
+        from generated_Culture
+        order by generated_name_culture;
+    """
+
+    cursor.execute(query_cultures)
+    cultures = cursor.fetchall()
+
+    if not cultures:
+        print("No generated cultures found.")
+        return None, None
+
+    formatted = [(i + 1, row.generated_guid_culture, row.generated_name_culture)
+                 for i, row in enumerate(cultures)]
+
+    max_len = max(len(row[2]) for row in formatted) + 5
+    num_len = len(str(len(formatted))) + 2
+    col_count = 3
+
+    print("\nAvailable Generated Cultures:\n")
+    for i, (num, _, name) in enumerate(formatted):
+        print(f"{num:>{num_len}}: {name:<{max_len}}", end="")
+        if (i + 1) % col_count == 0:
+            print()
+    if len(formatted) % col_count != 0:
+        print("\n")
+
+    while True:
+        try:
+            selection = int(input("Enter the number of the culture: ").strip())
+            if 1 <= selection <= len(formatted):
+                guid = formatted[selection - 1][1]
+                culture_name = formatted[selection - 1][2]
+                break
+            print("Invalid selection.")
+        except ValueError:
+            print("Please enter a number.")
+
+    query_names = """
+        select generated_name
+        from generated_name
+        where generated_guid_culture = ?
+        order by generated_name
+    """
+    cursor.execute(query_names, (guid,))
+    names = [row.generated_name for row in cursor.fetchall()]
+
+    return culture_name, names
+
+# Export to file
+def dump_existing_names_to_file(cursor):
+    culture_name, names = select_generated_culture_and_fetch_names(cursor)
+
+    if not names:
+        print("No names found.")
+        return
+
+    language_meta = {
+        "generated_culture": culture_name,
+        "generated_era": "N/A",
+        "batch_notes": "Exported existing generated names"
+    }
+
+    selections = [("Existing Names", len(names))]
+
+    write_names_to_file(names, language_meta, selections)
 
 # Get and display all generated cultures
 def fetch_and_display_generated_names(cursor):
@@ -422,9 +496,16 @@ def main():
         if activity == '1':
             break  # Continue to generate names
         elif activity == '2':
-            fetch_and_display_generated_names(cursor)
+            display_existing_names(cursor)  # or fetch_and_display_generated_names
         elif activity == '3':
             config = update_config_from_user_input(config)
+        elif activity == '4':
+            dump_existing_names_to_file(cursor)
+        elif activity == '5':
+            print("Exiting.")
+            cursor.close()
+            conn.close()
+            return
 
     # Fetch selectable name options
     options = fetch_name_options(cursor)
